@@ -1,4 +1,5 @@
 from pathlib import Path
+from zipfile import ZipFile
 
 import pytest
 
@@ -10,7 +11,6 @@ from app.ops.portable import (
     write_export,
 )
 
-
 def records() -> dict:
     return export_records(
         jobs=[{"id": "job-1"}],
@@ -20,13 +20,11 @@ def records() -> dict:
         ],
     )
 
-
 def test_export_round_trip(tmp_path: Path) -> None:
     path = tmp_path / "export.json"
     write_export(path, records())
 
     assert read_export(path)["format"] == "bulk-certificate-generator-v1"
-
 
 def test_invalid_reference_is_rejected() -> None:
     payload = records()
@@ -34,7 +32,6 @@ def test_invalid_reference_is_rejected() -> None:
 
     with pytest.raises(ValueError, match="missing recipient"):
         write_export("unused.json", payload)
-
 
 def test_storage_backup_restores_keys(tmp_path: Path) -> None:
     source = tmp_path / "source"
@@ -46,3 +43,11 @@ def test_storage_backup_restores_keys(tmp_path: Path) -> None:
     restore_storage(archive, target)
 
     assert target.joinpath("certificates/job/cert.pdf").read_bytes() == b"%PDF-test"
+
+def test_storage_restore_rejects_traversal_archive(tmp_path: Path) -> None:
+    archive = tmp_path / "unsafe.zip"
+    with ZipFile(archive, "w") as backup:
+        backup.writestr("../outside.txt", b"unsafe")
+
+    with pytest.raises(ValueError, match="invalid storage backup path"):
+        restore_storage(archive, tmp_path / "target")

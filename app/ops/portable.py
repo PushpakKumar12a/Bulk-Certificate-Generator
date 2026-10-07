@@ -2,6 +2,7 @@ import hashlib
 import json
 import shutil
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -105,6 +106,18 @@ def restore_storage(archive: str | Path, target: str | Path) -> None:
 
     with tempfile.TemporaryDirectory() as temporary:
         unpacked = Path(temporary)
+
+        with zipfile.ZipFile(archive) as backup:
+            for member in backup.infolist():
+                member_path = Path(member.filename)
+                if (
+                    member_path.is_absolute()
+                    or ".." in member_path.parts
+                    or not member_path.parts
+                    or member_path.parts[0] != "storage"
+                ):
+                    raise ValueError("invalid storage backup path")
+
         shutil.unpack_archive(str(archive), str(unpacked))
         source = unpacked / "storage"
         expected = json.loads((source / "manifest.json").read_text(encoding="utf-8"))

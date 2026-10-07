@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.auth import Identity, require_scope
-from app.db.models import Job, Recipient
+from app.db.models import Job, JobStatus, Recipient
 from app.db.repo import get_job, get_recipients
 from app.db.session import get_db
 from app.jobs.csv import read_csv
@@ -54,7 +54,12 @@ async def create_job(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     count = await db.scalar(
-        select(func.count()).select_from(Job).where(Job.owner_id == identity.user_id)
+        select(func.count())
+        .select_from(Job)
+        .where(
+            Job.owner_id == identity.user_id,
+            Job.status.in_((JobStatus.QUEUED, JobStatus.RUNNING)),
+        )
     )
 
     if count >= settings.max_jobs_per_user:
@@ -86,8 +91,16 @@ async def create_job(
     db.add(job)
     await db.commit()
     await db.refresh(job)
-    process_job.delay(str(job.id))
-
+    try:
+        process_job.delay(str(job.id))
+    except Exception as exc:
+        job.status = JobStatus.FAILED
+        job.completed_at = datetime.now(UTC)
+        await db.commit()
+        raise HTTPException(
+            status_code=503,
+            detail="job queue is unavailable",
+        ) from exc
 
     return JobOut(
         job_id=str(job.id),
@@ -106,7 +119,6 @@ async def job_status(
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
 
-
     recipients = await get_recipients(db, job_id)
     results = []
 
@@ -123,7 +135,6 @@ async def job_status(
             certificate_id=certificate_id,
         )
         results.append(result)
-
 
     return JobStatusOut(
         job_id=job.id,

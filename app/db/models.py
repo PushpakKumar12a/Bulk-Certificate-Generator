@@ -10,10 +10,10 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Uuid,
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 class Base(DeclarativeBase):
@@ -44,7 +44,7 @@ class Job(Base):
     __tablename__ = "jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     owner_id: Mapped[str] = mapped_column(
         String(100), index=True, nullable=False, server_default="legacy"
@@ -81,7 +81,7 @@ class Recipient(Base):
     __table_args__ = (UniqueConstraint("job_id", "row"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     job_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("jobs.id", ondelete="CASCADE"), index=True
@@ -110,7 +110,7 @@ class Certificate(Base):
     __tablename__ = "certificates"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     recipient_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("recipients.id", ondelete="CASCADE"), unique=True

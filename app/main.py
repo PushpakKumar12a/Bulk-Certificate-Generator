@@ -4,10 +4,14 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
+from fastapi.responses import JSONResponse
+from sqlalchemy import text
+from redis.asyncio import from_url
 
 from app.core.config import get_settings
 from app.core.limits import check_rate
 from app.core.observability import configure_logging, metrics, observe
+from app.db.session import engine
 from app.jobs.routes import router as jobs_router
 from app.certificates.routes import router as certificates_router
 
@@ -22,7 +26,7 @@ def make_app() -> FastAPI:
 
     @application.middleware("http")
     async def rate_limit(request: Request, call_next) -> Response:
-        check_rate(request)
+        await check_rate(request)
 
         return await call_next(request)
 
@@ -56,19 +60,48 @@ def make_app() -> FastAPI:
         return {"status": "ok", "environment": settings.environment}
 
     @application.get("/ready", tags=["system"])
-    def ready() -> dict[str, str]:
+    async def ready() -> Response:
         if not settings.database_url or not settings.redis_url:
-            return {
-                "status": "degraded",
-                "database": "not configured",
-                "queue": "not configured",
-            }
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "degraded",
+                    "database": "not configured",
+                    "queue": "not configured",
+                },
+            )
 
-        return {
-            "status": "ready",
-            "database": "configured",
-            "queue": "configured",
-        }
+        queue = None
+        try:
+            if engine is None:
+                raise RuntimeError("database engine is not configured")
+
+            async with engine.connect() as connection:
+                await connection.execute(text("SELECT 1"))
+
+            queue = from_url(settings.redis_url)
+            await queue.ping()
+        except Exception:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "degraded",
+                    "database": "unavailable",
+                    "queue": "unavailable",
+                },
+            )
+        finally:
+            if queue is not None:
+                await queue.aclose()
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "status": "ready",
+                "database": "available",
+                "queue": "available",
+            },
+        )
 
     @application.get("/metrics", tags=["system"])
     def application_metrics() -> dict[str, dict[str, int]]:

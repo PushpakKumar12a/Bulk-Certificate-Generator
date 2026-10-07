@@ -2,6 +2,7 @@ import logging
 from datetime import UTC, datetime
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.certificates.storage import CertificateStorage
@@ -20,6 +21,9 @@ async def generate(
     storage: CertificateStorage,
 ) -> Certificate | None:
     """Generate one recipient independently and persist its terminal result."""
+    if recipient.certificate is not None:
+        return recipient.certificate
+
     recipient.status = ItemStatus.PROCESSING
     await db.commit()
 
@@ -50,6 +54,13 @@ async def generate(
 
     except Exception as exc:
         logger.exception("Certificate generation failed for recipient %s", recipient.id)
+        await db.rollback()
+        existing = await db.scalar(
+            select(Certificate).where(Certificate.recipient_id == recipient.id)
+        )
+        if existing is not None:
+            return existing
+
         recipient.status = ItemStatus.FAILED
         recipient.error = str(exc)[:2000]
         await db.commit()

@@ -7,6 +7,7 @@ from uuid import UUID
 from celery import Task
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.certificates.service import generate
 from app.certificates.storage import LocalCertificateStorage
@@ -54,6 +55,7 @@ async def process(job_id: UUID) -> None:
 
             recipients = await db.scalars(
                 select(Recipient)
+                .options(selectinload(Recipient.certificate))
                 .where(Recipient.job_id == job_id)
                 .order_by(Recipient.row)
             )

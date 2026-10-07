@@ -1,6 +1,5 @@
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 revision = "0001"
 down_revision = None
@@ -8,7 +7,7 @@ down_revision = None
 def upgrade() -> None:
     op.create_table(
         "jobs",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
         sa.Column("title", sa.String(200), nullable=False),
         sa.Column("course", sa.String(200), nullable=False),
         sa.Column("org", sa.String(200), nullable=False),
@@ -36,8 +35,8 @@ def upgrade() -> None:
     )
     op.create_table(
         "recipients",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("job_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
+        sa.Column("job_id", sa.Uuid(as_uuid=True), nullable=False),
         sa.Column("row", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(200), nullable=False),
         sa.Column("email", sa.String(320)),
@@ -61,8 +60,8 @@ def upgrade() -> None:
     op.create_index("ix_recipients_job_id", "recipients", ["job_id"])
     op.create_table(
         "certificates",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("recipient_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
+        sa.Column("recipient_id", sa.Uuid(as_uuid=True), nullable=False),
         sa.Column("file_path", sa.String(500), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.ForeignKeyConstraint(["recipient_id"], ["recipients.id"], ondelete="CASCADE"),
@@ -74,5 +73,6 @@ def downgrade() -> None:
     op.drop_index("ix_recipients_job_id", table_name="recipients")
     op.drop_table("recipients")
     op.drop_table("jobs")
-    op.execute("DROP TYPE item_status")
-    op.execute("DROP TYPE job_status")
+    if op.get_bind().dialect.name == "postgresql":
+        op.execute("DROP TYPE item_status")
+        op.execute("DROP TYPE job_status")
