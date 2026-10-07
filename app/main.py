@@ -11,19 +11,26 @@ from app.jobs.routes import router as jobs_router
 from app.certificates.routes import router as certificates_router
 
 def make_app() -> FastAPI:
-
     settings = get_settings()
     application = FastAPI(title=settings.app_name)
+
     if settings.environment == "production":
         application.add_middleware(HTTPSRedirectMiddleware)
 
     @application.middleware("http")
     async def rate_limit(request: Request, call_next) -> Response:
         check_rate(request)
+
         return await call_next(request)
+
+    cors_origins = []
+
+    for origin in settings.cors_origins:
+        cors_origins.append(str(origin))
+
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=[str(origin) for origin in settings.cors_origins],
+        allow_origins=cors_origins,
         allow_credentials=False,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "X-API-Key"],
@@ -31,6 +38,7 @@ def make_app() -> FastAPI:
 
     async def security_headers(request: Request, call_next) -> Response:
         response = await call_next(request)
+
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
@@ -42,7 +50,6 @@ def make_app() -> FastAPI:
 
     @application.get("/health", tags=["system"])
     def health() -> dict[str, str]:
-
         return {"status": "ok", "environment": settings.environment}
 
     return application

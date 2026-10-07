@@ -26,6 +26,7 @@ async def generate(
     certificate_id = Certificate.__table__.c.id.default.arg()
     key = certificate_storage_key(job.id, certificate_id)
     try:
+
         content = certificate_pdf(
             name=recipient.name,
             course=job.course,
@@ -34,6 +35,7 @@ async def generate(
             number=recipient.number,
         )
         storage.save(key, content)
+
         certificate = Certificate(
             id=certificate_id,
             recipient_id=recipient.id,
@@ -43,24 +45,35 @@ async def generate(
         recipient.status = ItemStatus.COMPLETED
         recipient.error = None
         await db.commit()
+
         return certificate
+
     except Exception as exc:
         logger.exception("Certificate generation failed for recipient %s", recipient.id)
         recipient.status = ItemStatus.FAILED
         recipient.error = str(exc)[:2000]
         await db.commit()
+
         return None
 
 def finish_job(job: Job) -> None:
-    job.done = sum(
-        recipient.status in (ItemStatus.COMPLETED, ItemStatus.FAILED)
-        for recipient in job.recipients
-    )
-    job.success = sum(
-        recipient.status == ItemStatus.COMPLETED for recipient in job.recipients
-    )
-    job.failed = sum(
-        recipient.status == ItemStatus.FAILED for recipient in job.recipients
-    )
+    done = 0
+    success = 0
+    failed = 0
+
+    for recipient in job.recipients:
+        if recipient.status in (ItemStatus.COMPLETED, ItemStatus.FAILED):
+            done += 1
+
+        if recipient.status == ItemStatus.COMPLETED:
+            success += 1
+
+        if recipient.status == ItemStatus.FAILED:
+            failed += 1
+
+    job.done = done
+    job.success = success
+    job.failed = failed
+
     if job.done == job.total:
         job.completed_at = datetime.now(UTC)

@@ -21,10 +21,9 @@ def test_defaults() -> None:
     assert date(2026, 10, 7).isoformat() == "2026-10-07"
 
 def test_unique_rows() -> None:
-    names = {
-        tuple(constraint.columns.keys())
-        for constraint in Recipient.__table__.constraints
-        if isinstance(constraint, UniqueConstraint)
-    }
+    names = set()
+    for constraint in Recipient.__table__.constraints:
+        if isinstance(constraint, UniqueConstraint):
+            names.add(tuple(constraint.columns.keys()))
 
     assert ("job_id", "row") in names

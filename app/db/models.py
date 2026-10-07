@@ -19,6 +19,14 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 class Base(DeclarativeBase):
     pass
 
+
+def enum_values(values: list[StrEnum]) -> list[str]:
+    result = []
+    for item in values:
+        result.append(item.value)
+    return result
+
+
 class JobStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
@@ -49,7 +57,7 @@ class Job(Base):
         Enum(
             JobStatus,
             name="job_status",
-            values_callable=lambda values: [item.value for item in values],
+            values_callable=enum_values,
         ),
         default=JobStatus.QUEUED,
         nullable=False,
@@ -86,7 +94,7 @@ class Recipient(Base):
         Enum(
             ItemStatus,
             name="item_status",
-            values_callable=lambda values: [item.value for item in values],
+            values_callable=enum_values,
         ),
         default=ItemStatus.PENDING,
         nullable=False,

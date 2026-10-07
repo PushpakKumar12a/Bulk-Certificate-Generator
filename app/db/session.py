@@ -5,10 +5,18 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.config import get_settings
 
 settings = get_settings()
-engine = create_async_engine(settings.database_url) if settings.database_url else None
-session_maker = (
-    async_sessionmaker(engine, expire_on_commit=False) if engine is not None else None
-)
+
+if settings.database_url:
+    engine = create_async_engine(settings.database_url)
+
+else:
+    engine = None
+
+if engine is not None:
+    session_maker = async_sessionmaker(engine, expire_on_commit=False)
+
+else:
+    session_maker = None
 
 async def get_db() -> AsyncIterator[AsyncSession]:
     if session_maker is None:

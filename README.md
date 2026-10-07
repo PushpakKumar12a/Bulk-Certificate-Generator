@@ -195,6 +195,26 @@ user has a configurable job quota through `MAX_JOBS_PER_USER`.
 In production, HTTP requests are redirected to HTTPS, security headers are
 added to responses, and `WORKER_CONCURRENCY` caps parallel certificate jobs.
 
+## Database portability and backups
+
+Phase 8 operations use a database-neutral JSON export containing jobs,
+recipients, and certificate references. The export validator checks all
+foreign-key references and rejects unsafe storage keys before import.
+`backup_storage` creates a ZIP archive with a SHA-256 manifest; restoration
+verifies every checksum before copying files, preserving certificate keys.
+
+Before a cutover:
+
+1. Stop job creation and drain the worker queue.
+2. Export and validate domain records.
+3. Back up `STORAGE_PATH` and verify its manifest.
+4. Provision the target database with `uv run alembic upgrade head`.
+5. Import records, then compare certificate references with restored files.
+
+Keep the source database and storage archive until verification succeeds.
+Rollback is to stop traffic, restore the prior database snapshot, and restore
+the storage archive to the original `STORAGE_PATH`.
+
 ## CSV upload
 
 Create a job with a CSV file and certificate details:

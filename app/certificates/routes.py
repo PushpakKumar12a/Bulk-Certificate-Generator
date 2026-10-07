@@ -13,6 +13,7 @@ from app.db.session import get_db
 
 router = APIRouter(prefix="/jobs", tags=["certificates"])
 
+
 @router.get("/{job_id}/certificates/{certificate_id}")
 async def download(
     job_id: UUID,
@@ -24,12 +25,14 @@ async def download(
     if certificate is None:
         raise HTTPException(status_code=404, detail="certificate not found")
 
+
     storage = LocalCertificateStorage(Path(get_settings().storage_path))
     try:
         file_path = storage.path_for(certificate.file_path)
         file_path.stat()
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(status_code=404, detail="certificate file not found") from exc
+
 
     return FileResponse(
         path=file_path,

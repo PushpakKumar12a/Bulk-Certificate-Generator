@@ -19,11 +19,20 @@ logger = logging.getLogger(__name__)
 
 def progress(recipients: Iterable[Recipient]) -> tuple[int, int, int]:
     items = list(recipients)
-    done = sum(
-        item.status in (ItemStatus.COMPLETED, ItemStatus.FAILED) for item in items
-    )
-    success = sum(item.status == ItemStatus.COMPLETED for item in items)
-    failed = sum(item.status == ItemStatus.FAILED for item in items)
+    done = 0
+    success = 0
+    failed = 0
+
+    for item in items:
+        if item.status in (ItemStatus.COMPLETED, ItemStatus.FAILED):
+            done += 1
+
+        if item.status == ItemStatus.COMPLETED:
+            success += 1
+
+        if item.status == ItemStatus.FAILED:
+            failed += 1
+
     return done, success, failed
 
 async def process(job_id: UUID) -> None:
@@ -34,6 +43,7 @@ async def process(job_id: UUID) -> None:
         job = await db.get(Job, job_id)
         if job is None:
             logger.warning("Ignoring missing job %s", job_id)
+
             return
 
         try:
@@ -47,9 +57,11 @@ async def process(job_id: UUID) -> None:
                 .where(Recipient.job_id == job_id)
                 .order_by(Recipient.row)
             )
+
             for recipient in recipients:
                 if recipient.status == ItemStatus.COMPLETED:
                     continue
+
                 await generate(db, job, recipient, storage)
                 await update_progress(db, job)
 
@@ -59,6 +71,7 @@ async def process(job_id: UUID) -> None:
             job.status = JobStatus.FAILED
             job.completed_at = datetime.now(UTC)
             await db.commit()
+
             raise
 
 async def update_progress(db: AsyncSession, job: Job) -> None:
@@ -66,6 +79,7 @@ async def update_progress(db: AsyncSession, job: Job) -> None:
         select(Recipient).where(Recipient.job_id == job.id)
     )
     job.done, job.success, job.failed = progress(recipients)
+
     if job.done == job.total:
         job.status = (
             JobStatus.COMPLETED_WITH_ERRORS
@@ -73,6 +87,7 @@ async def update_progress(db: AsyncSession, job: Job) -> None:
             else JobStatus.COMPLETED
         )
         job.completed_at = datetime.now(UTC)
+
     await db.commit()
 
 class JobTask(Task):

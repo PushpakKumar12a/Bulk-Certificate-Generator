@@ -35,6 +35,7 @@ async def create_job(
         raise HTTPException(status_code=400, detail="recipients_file must be a CSV file")
 
     data = await recipients_file.read(settings.max_csv_bytes + 1)
+
     if len(data) > settings.max_csv_bytes:
         raise HTTPException(status_code=413, detail="CSV file is too large")
 
@@ -55,6 +56,7 @@ async def create_job(
     count = await db.scalar(
         select(func.count()).select_from(Job).where(Job.owner_id == identity.user_id)
     )
+
     if count >= settings.max_jobs_per_user:
         raise HTTPException(status_code=429, detail="job quota exceeded")
 
@@ -66,19 +68,26 @@ async def create_job(
         issue_date=meta.issue_date,
         total=len(rows),
     )
-    job.recipients = [
-        Recipient(
+    recipients = []
+    for line, item in rows:
+        if item.email:
+            email = str(item.email)
+        else:
+            email = None
+        recipient = Recipient(
             row=line,
             name=item.name,
-            email=str(item.email) if item.email else None,
+            email=email,
             number=item.number,
         )
-        for line, item in rows
-    ]
+        recipients.append(recipient)
+
+    job.recipients = recipients
     db.add(job)
     await db.commit()
     await db.refresh(job)
     process_job.delay(str(job.id))
+
 
     return JobOut(
         job_id=str(job.id),
@@ -97,7 +106,25 @@ async def job_status(
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
 
+
     recipients = await get_recipients(db, job_id)
+    results = []
+
+    for item in recipients:
+        if item.certificate:
+            certificate_id = item.certificate.id
+        else:
+            certificate_id = None
+        result = RecipientResult(
+            row=item.row,
+            name=item.name,
+            status=item.status.value,
+            error=item.error,
+            certificate_id=certificate_id,
+        )
+        results.append(result)
+
+
     return JobStatusOut(
         job_id=job.id,
         status=job.status,
@@ -105,14 +132,5 @@ async def job_status(
         done=job.done,
         success=job.success,
         failed=job.failed,
-        results=[
-            RecipientResult(
-                row=item.row,
-                name=item.name,
-                status=item.status.value,
-                error=item.error,
-                certificate_id=item.certificate.id if item.certificate else None,
-            )
-            for item in recipients
-        ],
+        results=results,
     )
