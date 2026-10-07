@@ -215,6 +215,19 @@ Keep the source database and storage archive until verification succeeds.
 Rollback is to stop traffic, restore the prior database snapshot, and restore
 the storage archive to the original `STORAGE_PATH`.
 
+## Observability and operations
+
+Use `/health` for a process liveness check and `/ready` for dependency
+configuration status. `/metrics` exposes request counters suitable for
+scraping or forwarding to an operations system. Responses include
+`X-Request-ID` and `X-Response-Time-Ms` headers for request tracing.
+Application logs are emitted as JSON and intentionally exclude API keys,
+uploaded rows, and certificate contents.
+
+For production operations, run the complete test suite before deployment,
+apply migrations with `uv run alembic upgrade head`, and retain the database
+and storage backup until a restore verification succeeds.
+
 ## CSV upload
 
 Create a job with a CSV file and certificate details:
