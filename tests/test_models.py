@@ -2,7 +2,7 @@ from datetime import date
 
 from sqlalchemy import Date, Enum, UniqueConstraint
 
-from app.models import Certificate, Job, JobStatus, ItemStatus, Recipient
+from app.db.models import Certificate, Job, JobStatus, ItemStatus, Recipient
 
 def test_tables() -> None:
     assert {Job.__tablename__, Recipient.__tablename__, Certificate.__tablename__} == {

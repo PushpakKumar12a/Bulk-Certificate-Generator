@@ -23,6 +23,41 @@ progress, and retrieving generated certificates.
   and result metadata. Certificate files are stored separately through a
   storage interface.
 
+## Project structure
+
+```text
+bulk-certificate-generator/
+├── app/
+│   ├── __init__.py
+│   ├── core/
+│   │   └── config.py      # Environment settings
+│   ├── db/
+│   │   ├── models.py      # SQLAlchemy database models
+│   │   ├── repo.py        # Database queries
+│   │   └── session.py     # Async PostgreSQL session
+│   ├── jobs/
+│   │   ├── csv.py         # CSV parsing and validation
+│   │   ├── routes.py      # Job upload endpoint
+│   │   └── schemas.py     # Job and recipient schemas
+│   └── main.py            # FastAPI application
+├── alembic/
+│   ├── env.py             # Migration configuration
+│   ├── script.py.mako     # Migration template
+│   └── versions/
+│       └── create_tables.py
+├── tests/
+│   ├── test_csv.py
+│   ├── test_health.py
+│   └── test_models.py
+├── storage/               # Local generated PDFs, ignored by Git
+├── .env.example           # Safe environment template
+├── .env.local             # Local secrets, ignored by Git
+├── alembic.ini
+├── main.py
+├── pyproject.toml
+└── uv.lock
+```
+
 ## Setup
 
 ### Requirements
@@ -118,6 +153,24 @@ uv run alembic upgrade head
 
 Phase 2 stores jobs, recipients, and generated certificate file keys in
 PostgreSQL. PDF files remain in the local `storage/` directory.
+
+## CSV upload
+
+Create a job with a CSV file and certificate details:
+
+```powershell
+curl.exe -X POST http://127.0.0.1:8000/jobs `
+  -F "title=Certificate of Completion" `
+  -F "course=Python Basics" `
+  -F "org=Acme Learning" `
+  -F "issue_date=2026-10-07" `
+  -F "recipients_file=@recipients.csv"
+```
+
+The CSV must contain `full_name`. It may also contain `email` and
+`certificate_number`. The API validates UTF-8 encoding, row count, field
+lengths, email format, duplicate certificate numbers, and empty files before
+creating a queued job.
 
 ## API architecture
 

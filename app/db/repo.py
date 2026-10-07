@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Job, Recipient
+from app.db.models import Job, Recipient
 
 async def add_job(db: AsyncSession, job: Job) -> Job:
     db.add(job)

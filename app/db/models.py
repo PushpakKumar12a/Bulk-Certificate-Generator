@@ -2,7 +2,17 @@ import uuid
 from datetime import date, datetime
 from enum import StrEnum
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -25,13 +35,19 @@ class ItemStatus(StrEnum):
 class Job(Base):
     __tablename__ = "jobs"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     course: Mapped[str] = mapped_column(String(200), nullable=False)
     org: Mapped[str] = mapped_column(String(200), nullable=False)
     issue_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[JobStatus] = mapped_column(
-        Enum(JobStatus, name="job_status", values_callable=lambda values: [item.value for item in values]),
+        Enum(
+            JobStatus,
+            name="job_status",
+            values_callable=lambda values: [item.value for item in values],
+        ),
         default=JobStatus.QUEUED,
         nullable=False,
     )
@@ -53,7 +69,9 @@ class Recipient(Base):
     __tablename__ = "recipients"
     __table_args__ = (UniqueConstraint("job_id", "row"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     job_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("jobs.id", ondelete="CASCADE"), index=True
     )
@@ -62,7 +80,11 @@ class Recipient(Base):
     email: Mapped[str | None] = mapped_column(String(320))
     number: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[ItemStatus] = mapped_column(
-        Enum(ItemStatus, name="item_status", values_callable=lambda values: [item.value for item in values]),
+        Enum(
+            ItemStatus,
+            name="item_status",
+            values_callable=lambda values: [item.value for item in values],
+        ),
         default=ItemStatus.PENDING,
         nullable=False,
     )
@@ -76,7 +98,9 @@ class Recipient(Base):
 class Certificate(Base):
     __tablename__ = "certificates"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
     recipient_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("recipients.id", ondelete="CASCADE"), unique=True
     )
