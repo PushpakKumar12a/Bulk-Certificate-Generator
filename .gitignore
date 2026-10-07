@@ -1,0 +1,20 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local configuration and generated certificate storage
+.env
+.env.*
+!.env.example
+storage/
+Bulk_Certificate_Generator_Backend_Assignment.md
+PROJECT_EXECUTION_PHASES.md
+SECURITY_README.md
+.env.local
