@@ -234,6 +234,7 @@ Create a job with a CSV file and certificate details:
 
 ```powershell
 curl.exe -X POST http://127.0.0.1:8000/jobs `
+  -H "X-API-Key: replace-me" `
   -F "title=Certificate of Completion" `
   -F "course=Python Basics" `
   -F "org=Acme Learning" `
@@ -245,6 +246,62 @@ The CSV must contain `full_name`. It may also contain `email` and
 `certificate_number`. The API validates UTF-8 encoding, row count, field
 lengths, email format, duplicate certificate numbers, and empty files before
 creating a queued job.
+
+## Job status and progress
+
+Poll the status URL returned by job creation:
+
+```powershell
+curl.exe http://127.0.0.1:8000/jobs/<job-id> `
+  -H "X-API-Key: replace-me"
+```
+
+The response includes counters and a result for every recipient:
+
+```json
+{
+  "job_id": "6f7b1f2b-9e6d-4d9a-9d7a-1f8b6f2c4a10",
+  "status": "completed_with_errors",
+  "total": 2,
+  "done": 2,
+  "success": 1,
+  "failed": 1,
+  "results": [
+    {
+      "row": 2,
+      "name": "Asha Sharma",
+      "status": "completed",
+      "error": null,
+      "certificate_id": "8c6a2fb2-5cc3-42e8-8756-0a90b4c3d111"
+    },
+    {
+      "row": 3,
+      "name": "Invalid Example",
+      "status": "failed",
+      "error": "render failed",
+      "certificate_id": null
+    }
+  ]
+}
+```
+
+The terminal states are `completed`, `completed_with_errors`, and `failed`.
+`completed_with_errors` means at least one recipient failed while other
+recipients completed successfully.
+
+## Retrieve a certificate
+
+Download a successful certificate using its job and certificate identifiers:
+
+```powershell
+curl.exe -L http://127.0.0.1:8000/jobs/<job-id>/certificates/<certificate-id> `
+  -H "X-API-Key: replace-me" `
+  --output certificate.pdf
+```
+
+The authenticated API key must own the job and include the
+`certificates:read` scope. Failed recipients have no certificate identifier
+and return `404` if a download is attempted.
 
 ## API architecture
 
