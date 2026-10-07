@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models import Certificate, Job, Recipient
 
@@ -16,7 +17,10 @@ async def get_job(db: AsyncSession, job_id: UUID) -> Job | None:
 
 async def get_recipients(db: AsyncSession, job_id: UUID) -> list[Recipient]:
     result = await db.scalars(
-        select(Recipient).where(Recipient.job_id == job_id).order_by(Recipient.row)
+        select(Recipient)
+        .options(selectinload(Recipient.certificate))
+        .where(Recipient.job_id == job_id)
+        .order_by(Recipient.row)
     )
     return list(result)
 

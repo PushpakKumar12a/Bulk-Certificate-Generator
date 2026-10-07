@@ -1,4 +1,5 @@
 from datetime import date
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import ValidationError
@@ -6,9 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db.models import Job, Recipient
+from app.db.repo import get_job, get_recipients
 from app.db.session import get_db
 from app.jobs.csv import read_csv
 from app.jobs.schemas import JobIn, JobOut
+from app.jobs.status import JobStatusOut, RecipientResult
+from app.worker.tasks import process_job
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -65,10 +69,40 @@ async def create_job(
     db.add(job)
     await db.commit()
     await db.refresh(job)
+    process_job.delay(str(job.id))
 
     return JobOut(
         job_id=str(job.id),
         status=job.status.value,
         total=job.total,
         status_url=f"/jobs/{job.id}",
+    )
+
+@router.get("/{job_id}", response_model=JobStatusOut)
+async def job_status(
+    job_id: UUID,
+    db: AsyncSession = Depends(get_db),
+) -> JobStatusOut:
+    job = await get_job(db, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    recipients = await get_recipients(db, job_id)
+    return JobStatusOut(
+        job_id=job.id,
+        status=job.status,
+        total=job.total,
+        done=job.done,
+        success=job.success,
+        failed=job.failed,
+        results=[
+            RecipientResult(
+                row=item.row,
+                name=item.name,
+                status=item.status.value,
+                error=item.error,
+                certificate_id=item.certificate.id if item.certificate else None,
+            )
+            for item in recipients
+        ],
     )

@@ -126,8 +126,7 @@ uv run uvicorn app.main:app --reload
 uv run celery -A app.worker.celery_app worker --loglevel=INFO
 ```
 
-The API entry point is `app.main:app`. The Celery worker and migration modules
-will be added in later phases. For Phase 1, verify the API foundation with:
+The API entry point is `app.main:app`. Verify the API foundation with:
 
 ```powershell
 uv run uvicorn app.main:app --reload
@@ -152,10 +151,8 @@ Run the complete test suite with:
 uv run python -m pytest
 ```
 
-Phase 1 includes a health endpoint smoke test. The complete suite will add
-job creation, input validation, certificate generation, job status/progress,
-individual certificate failure, and certificate retrieval tests in later
-phases.
+The test suite covers health checks, CSV validation, certificate generation,
+job status/progress, and storage behavior.
 
 ## Phase 2 database
 
@@ -167,6 +164,19 @@ uv run alembic upgrade head
 
 Phase 2 stores jobs, recipients, and generated certificate file keys in
 PostgreSQL. PDF files remain in the local `storage/` directory.
+
+## Background processing and job status
+
+Job creation queues `jobs.process` in Celery and returns immediately. Start a
+worker with:
+
+```powershell
+uv run celery -A app.worker.celery_app:celery_app worker --loglevel=INFO
+```
+
+Poll `GET /jobs/{job_id}` for the job state, progress counters, and
+per-recipient results. A retry skips recipients that already have completed
+certificates, so worker retries do not create duplicate results.
 
 ## CSV upload
 

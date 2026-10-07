@@ -11,7 +11,7 @@ class LocalCertificateStorage:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
-    def _path_for(self, key: str) -> Path:
+    def path_for(self, key: str) -> Path:
         path = PurePosixPath(key)
         if (
             not key
@@ -27,10 +27,10 @@ class LocalCertificateStorage:
         return target
 
     def save(self, key: str, content: bytes) -> str:
-        target = self._path_for(key)
+        target = self.path_for(key)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         return key
 
     def read(self, key: str) -> bytes:
-        return self._path_for(key).read_bytes()
+        return self.path_for(key).read_bytes()
