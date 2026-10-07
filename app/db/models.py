@@ -38,6 +38,9 @@ class Job(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    owner_id: Mapped[str] = mapped_column(
+        String(100), index=True, nullable=False, server_default="legacy"
+    )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     course: Mapped[str] = mapped_column(String(200), nullable=False)
     org: Mapped[str] = mapped_column(String(200), nullable=False)

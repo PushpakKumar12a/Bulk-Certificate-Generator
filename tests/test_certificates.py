@@ -39,6 +39,7 @@ def test_storage_read_write(tmp_path: Path) -> None:
 
     assert storage.save(key, b"%PDF-test") == key
     assert storage.read(key) == b"%PDF-test"
+    assert storage.path_for(key) == tmp_path / key
 
 @pytest.mark.parametrize("key", ["../outside.pdf", r"..\outside.pdf", "C:/outside.pdf"])
 def test_storage_rejects_unsafe_keys(tmp_path: Path, key: str) -> None:

@@ -2,10 +2,12 @@ from datetime import date
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import func, select
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.auth import Identity, require_scope
 from app.db.models import Job, Recipient
 from app.db.repo import get_job, get_recipients
 from app.db.session import get_db
@@ -23,6 +25,7 @@ async def create_job(
     org: str = Form(...),
     issue_date: date = Form(...),
     recipients_file: UploadFile = File(...),
+    identity: Identity = Depends(require_scope("jobs:write")),
     db: AsyncSession = Depends(get_db),
 ) -> JobOut:
     settings = get_settings()
@@ -49,8 +52,14 @@ async def create_job(
         rows = read_csv(data, settings.max_rows)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    count = await db.scalar(
+        select(func.count()).select_from(Job).where(Job.owner_id == identity.user_id)
+    )
+    if count >= settings.max_jobs_per_user:
+        raise HTTPException(status_code=429, detail="job quota exceeded")
 
     job = Job(
+        owner_id=identity.user_id,
         title=meta.title,
         course=meta.course,
         org=meta.org,
@@ -81,9 +90,10 @@ async def create_job(
 @router.get("/{job_id}", response_model=JobStatusOut)
 async def job_status(
     job_id: UUID,
+    identity: Identity = Depends(require_scope("jobs:read")),
     db: AsyncSession = Depends(get_db),
 ) -> JobStatusOut:
-    job = await get_job(db, job_id)
+    job = await get_job(db, job_id, identity.user_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
 

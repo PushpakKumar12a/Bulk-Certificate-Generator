@@ -12,8 +12,11 @@ async def add_job(db: AsyncSession, job: Job) -> Job:
     await db.refresh(job)
     return job
 
-async def get_job(db: AsyncSession, job_id: UUID) -> Job | None:
-    return await db.get(Job, job_id)
+async def get_job(db: AsyncSession, job_id: UUID, owner_id: str) -> Job | None:
+    result = await db.scalars(
+        select(Job).where(Job.id == job_id, Job.owner_id == owner_id)
+    )
+    return result.one_or_none()
 
 async def get_recipients(db: AsyncSession, job_id: UUID) -> list[Recipient]:
     result = await db.scalars(
@@ -25,7 +28,7 @@ async def get_recipients(db: AsyncSession, job_id: UUID) -> list[Recipient]:
     return list(result)
 
 async def get_certificate(
-    db: AsyncSession, job_id: UUID, certificate_id: UUID
+    db: AsyncSession, job_id: UUID, certificate_id: UUID, owner_id: str
 ) -> Certificate | None:
     result = await db.scalars(
         select(Certificate)
@@ -33,6 +36,7 @@ async def get_certificate(
         .where(
             Certificate.id == certificate_id,
             Recipient.job_id == job_id,
+            Recipient.job.has(owner_id=owner_id),
         )
     )
     return result.one_or_none()

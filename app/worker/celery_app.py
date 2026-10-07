@@ -8,3 +8,4 @@ celery_app = Celery(
     broker=settings.redis_url,
     backend=settings.redis_url,
 )
+celery_app.conf.worker_concurrency = settings.worker_concurrency

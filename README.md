@@ -115,7 +115,8 @@ under `STORAGE_PATH`, which is not mounted as a static web directory. Each
 certificate receives a UUID and a generated key of the form
 `certificates/{job_id}/{certificate_id}.pdf`. Downloads must use the scoped
 endpoint `GET /jobs/{job_id}/certificates/{certificate_id}`; the job and
-certificate relationship is checked before the file is read.
+certificate relationship is checked before the file is streamed. Invalid,
+missing, or failed certificate results return a safe not-found response.
 
 ## Run the application
 
@@ -177,6 +178,22 @@ uv run celery -A app.worker.celery_app:celery_app worker --loglevel=INFO
 Poll `GET /jobs/{job_id}` for the job state, progress counters, and
 per-recipient results. A retry skips recipients that already have completed
 certificates, so worker retries do not create duplicate results.
+
+## Authentication and limits
+
+Job and certificate endpoints require `X-API-Key`. Configure identities with
+the `API_KEYS` environment variable using comma-separated
+`key:user:scope|scope` entries, for example:
+
+```env
+API_KEYS=replace-me:team-a:jobs:write|jobs:read|certificates:read
+```
+
+Jobs are owned by the authenticated user and cannot be read or downloaded by
+another identity. Requests are rate-limited per client and endpoint, and each
+user has a configurable job quota through `MAX_JOBS_PER_USER`.
+In production, HTTP requests are redirected to HTTPS, security headers are
+added to responses, and `WORKER_CONCURRENCY` caps parallel certificate jobs.
 
 ## CSV upload
 
