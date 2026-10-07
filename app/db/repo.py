@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Job, Recipient
+from app.db.models import Certificate, Job, Recipient
 
 async def add_job(db: AsyncSession, job: Job) -> Job:
     db.add(job)
@@ -19,3 +19,16 @@ async def get_recipients(db: AsyncSession, job_id: UUID) -> list[Recipient]:
         select(Recipient).where(Recipient.job_id == job_id).order_by(Recipient.row)
     )
     return list(result)
+
+async def get_certificate(
+    db: AsyncSession, job_id: UUID, certificate_id: UUID
+) -> Certificate | None:
+    result = await db.scalars(
+        select(Certificate)
+        .join(Certificate.recipient)
+        .where(
+            Certificate.id == certificate_id,
+            Recipient.job_id == job_id,
+        )
+    )
+    return result.one_or_none()

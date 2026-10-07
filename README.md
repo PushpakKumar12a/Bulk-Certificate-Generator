@@ -39,6 +39,11 @@ bulk-certificate-generator/
 │   │   ├── csv.py         # CSV parsing and validation
 │   │   ├── routes.py      # Job upload endpoint
 │   │   └── schemas.py     # Job and recipient schemas
+│   ├── certificates/
+│   │   ├── routes.py      # Authorized certificate download
+│   │   ├── service.py     # Per-recipient generation and failure isolation
+│   │   ├── storage.py     # Private local filesystem storage
+│   │   └── template.py    # Predefined HTML/CSS and PDF rendering
 │   └── main.py            # FastAPI application
 ├── alembic/
 │   ├── env.py             # Migration configuration
@@ -102,6 +107,15 @@ storage interface remains separate from the API and worker so a third-party
 provider can be added later without changing certificate-generation logic.
 Generated certificates should use generated storage keys; never use a
 user-supplied filename or path.
+
+## Certificate generation and retrieval
+
+Certificates are rendered as PDFs from the predefined template and stored
+under `STORAGE_PATH`, which is not mounted as a static web directory. Each
+certificate receives a UUID and a generated key of the form
+`certificates/{job_id}/{certificate_id}.pdf`. Downloads must use the scoped
+endpoint `GET /jobs/{job_id}/certificates/{certificate_id}`; the job and
+certificate relationship is checked before the file is read.
 
 ## Run the application
 
