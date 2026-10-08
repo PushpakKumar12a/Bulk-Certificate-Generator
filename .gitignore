@@ -14,5 +14,4 @@ wheels/
 .env.*
 !.env.example
 storage/
-Bulk_Certificate_Generator_Backend_Assignment.md
 .env.local

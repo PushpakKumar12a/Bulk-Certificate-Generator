@@ -59,6 +59,9 @@ def certificate_pdf(
         pageCompression=1,
     )
 
+    if certificate_id:
+        c.setSubject(f"VERIFICATION ID: {certificate_id}")
+
     # ============================================================
     # COLORS
     # ============================================================

@@ -29,7 +29,14 @@ def progress(recipients: Iterable[Recipient]) -> tuple[int, int, int]:
             failed += 1
     return done, success, failed
 
-async def process(job_id: UUID) -> None:
+class BatchRetryError(Exception):
+    pass
+
+async def process(
+    job_id: UUID,
+    current_retry: int = 0,
+    max_retries: int = 3,
+) -> None:
     if session_maker is None:
         raise RuntimeError("DATABASE_URL is not configured")
 
@@ -39,6 +46,8 @@ async def process(job_id: UUID) -> None:
             logger.warning("Ignoring missing job %s", job_id)
 
             return
+
+        can_retry = current_retry < max_retries
 
         try:
             job.status = JobStatus.RUNNING
@@ -61,38 +70,68 @@ async def process(job_id: UUID) -> None:
 
                 await generate(db, job, recipient, storage)
                 if idx % 10 == 0:
-                    await update_progress(db, job)
+                    await update_progress(db, job, can_retry=can_retry)
 
-            await update_progress(db, job)
+            await update_progress(db, job, can_retry=can_retry)
+
+            if job.failed > 0 and can_retry:
+                logger.warning(
+                    "Job %s has %d failed recipient(s) on attempt %d/%d; scheduling Celery auto-retry",
+                    job_id,
+                    job.failed,
+                    current_retry + 1,
+                    max_retries + 1,
+                )
+                raise BatchRetryError(
+                    f"Job {job_id} has {job.failed} failed recipient(s) on attempt {current_retry + 1}"
+                )
+
+        except BatchRetryError:
+            raise
         except Exception:
-            logger.exception("Job %s failed in worker", job_id)
-            job.status = JobStatus.FAILED
-            job.completed_at = datetime.now(UTC)
-            await db.commit()
+            logger.exception("Job %s encountered unexpected worker error", job_id)
+            if not can_retry:
+                job.status = JobStatus.FAILED
+                job.completed_at = datetime.now(UTC)
+                await db.commit()
 
             raise
 
-async def update_progress(db: AsyncSession, job: Job) -> None:
-    recipients = await db.scalars(
-        select(Recipient).where(Recipient.job_id == job.id)
+async def update_progress(
+    db: AsyncSession,
+    job: Job,
+    can_retry: bool = False,
+) -> None:
+    recipients = list(
+        await db.scalars(select(Recipient).where(Recipient.job_id == job.id))
     )
     job.done, job.success, job.failed = progress(recipients)
 
     if job.done == job.total:
-        job.status = (
-            JobStatus.COMPLETED_WITH_ERRORS
-            if job.failed
-            else JobStatus.COMPLETED
-        )
-        job.completed_at = datetime.now(UTC)
+        if job.failed == 0:
+            job.status = JobStatus.COMPLETED
+            job.completed_at = datetime.now(UTC)
+        elif not can_retry:
+            job.status = JobStatus.COMPLETED_WITH_ERRORS
+            job.completed_at = datetime.now(UTC)
+        else:
+            job.status = JobStatus.RUNNING
 
     await db.commit()
 
 class JobTask(Task):
-    autoretry_for = (ConnectionError,)
+    autoretry_for = (ConnectionError, OSError, BatchRetryError)
     retry_backoff = True
+    retry_backoff_max = 60
     max_retries = 3
+    retry_jitter = True
 
 @celery_app.task(bind=True, base=JobTask, name="jobs.process")
 def process_job(self: JobTask, job_id: str) -> None:
-    asyncio.run(process(UUID(job_id)))
+    asyncio.run(
+        process(
+            UUID(job_id),
+            current_retry=self.request.retries,
+            max_retries=self.max_retries,
+        )
+    )

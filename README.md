@@ -2,6 +2,18 @@
 
 A high-performance FastAPI backend for asynchronous bulk certificate generation, real-time job tracking, secure PDF downloads, and public certificate authenticity verification.
 
+<p align="left">
+  <img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Celery-5.4+-37814A?style=flat-square&logo=celery&logoColor=white" alt="Celery" />
+  <img src="https://img.shields.io/badge/PostgreSQL-16+-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Redis%20%2F%20Valkey-7.0+-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis / Valkey" />
+  <img src="https://img.shields.io/badge/ReportLab-Vector%20PDF-0B4F6C?style=flat-square&logo=adobeacrobatreader&logoColor=white" alt="ReportLab" />
+  <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-D71F00?style=flat-square&logo=sqlalchemy&logoColor=white" alt="SQLAlchemy" />
+  <img src="https://img.shields.io/badge/Pydantic-v2-E92063?style=flat-square&logo=pydantic&logoColor=white" alt="Pydantic" />
+  <img src="https://img.shields.io/badge/uv-Astral-4B32C3?style=flat-square&logo=astral&logoColor=white" alt="uv" />
+  <img src="https://img.shields.io/badge/pytest-Passing-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest" />
+</p>
 ---
 
 ## Table of Contents
