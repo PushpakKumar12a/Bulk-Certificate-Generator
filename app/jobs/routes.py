@@ -112,7 +112,7 @@ async def job_status(
             error=item.error,
             certificate_id=item.certificate.id if item.certificate else None,
             download_url=f"/certificates/{item.certificate.id}" if item.certificate else None,
-            verification_url=f"/verify/{item.certificate.id}" if item.certificate else None,
+            verification_url=f"/certificates/{item.certificate.id}/verify" if item.certificate else None,
         )
         for item in recipients
     ]

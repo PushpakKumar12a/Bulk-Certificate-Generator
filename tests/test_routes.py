@@ -15,16 +15,14 @@ async def test_jobs_status_requires_authentication() -> None:
     assert response.status_code == 401
 
 @pytest.mark.asyncio
-async def test_certificate_download_requires_authentication() -> None:
+async def test_certificate_download_not_found() -> None:
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
     ) as client:
-        response = await client.get(
-            "/jobs/00000000-0000-0000-0000-000000000000/certificates/00000000-0000-0000-0000-000000000000"
-        )
+        response = await client.get("/certificates/00000000-0000-0000-0000-000000000000")
 
-    assert response.status_code == 401
+    assert response.status_code == 404
 
 @pytest.mark.asyncio
 async def test_certificate_verify_not_found() -> None:
@@ -35,10 +33,6 @@ async def test_certificate_verify_not_found() -> None:
         ) as client:
             response = await client.get("/certificates/00000000-0000-0000-0000-000000000000/verify")
             assert response.status_code == 404
-
-            response_shorthand = await client.get("/verify/00000000-0000-0000-0000-000000000000")
-            assert response_shorthand.status_code == 404
-
 
 @pytest.mark.asyncio
 async def test_certificate_verify_invalid_uuid() -> None:

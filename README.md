@@ -29,8 +29,8 @@ graph LR
     service -->|"save generated PDF"| storage
     service -->|"persist certificate metadata"| db
     client -->|"GET /jobs/{id}"| api
-    client -->|"GET /verify/{certificate_id}"| api
     client -->|"GET /certificates/{certificate_id}"| api
+    client -->|"GET /certificates/{certificate_id}/verify"| api
     certs -->|"query metadata"| db
     certs -->|"read PDF"| storage
 ```
@@ -155,15 +155,6 @@ On Windows, `-P solo` keeps the worker process compatible with the local async d
 The interactive API documentation is available at <http://127.0.0.1:8000/docs>.
 
 
-```powershell
-```
-
-The API is available at <http://127.0.0.1:8000>. Run migrations from an application container or from a local environment configured to reach the Compose PostgreSQL service:
-
-```powershell
-uv run alembic upgrade head
-```
-
 ## Tests
 
 ```powershell
@@ -215,23 +206,20 @@ curl.exe http://127.0.0.1:8000/jobs/27f914f7-72cf-4371-be96-19ea869953bb `
 
 Job statuses are `queued`, `running`, `completed`, `completed_with_errors`, and `failed`. Each recipient result includes its certificate ID and download/verification URLs when generation succeeds.
 
-### Verify a certificate
-
-```powershell
-curl.exe http://127.0.0.1:8000/verify/27759b61-fab3-4070-bccd-52c9e3307425
-```
-
-Unknown IDs return `404 Not Found`. The alias `/certificates/{certificate_id}/verify` is also available.
-
 ### Download a certificate
 
 ```powershell
 curl.exe -L http://127.0.0.1:8000/certificates/27759b61-fab3-4070-bccd-52c9e3307425 `
-  -H "X-Api-Key: local-dev-key" `
   --output certificate.pdf
 ```
 
-The job-scoped download route `/jobs/{job_id}/certificates/{certificate_id}` is also available.
+### Verify a certificate
+
+```powershell
+curl.exe http://127.0.0.1:8000/certificates/27759b61-fab3-4070-bccd-52c9e3307425/verify
+```
+
+Unknown IDs return `404 Not Found`. Returns validation status, recipient name, course, issuing organization, and dates.
 
 ## Health checks
 
