@@ -14,6 +14,7 @@ A high-performance FastAPI backend for asynchronous bulk certificate generation,
   <img src="https://img.shields.io/badge/uv-Astral-4B32C3?style=flat-square&logo=astral&logoColor=white" alt="uv" />
   <img src="https://img.shields.io/badge/pytest-Passing-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest" />
 </p>
+
 ---
 
 ## Table of Contents
