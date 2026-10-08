@@ -26,7 +26,7 @@ def test_status_contains_progress_and_results() -> None:
         results=[
             RecipientResult(
                 row=2,
-                name="Asha",
+                name="Sonu",
                 status="completed",
                 certificate_id=certificate_id,
             ),

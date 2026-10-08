@@ -21,12 +21,9 @@ class Settings(BaseSettings):
         default_factory=list,
         validation_alias="CORS_ORIGINS",
     )
-    api_keys: str = Field(default="", validation_alias="API_KEYS")
     max_jobs_per_user: int = Field(default=100, validation_alias="MAX_JOBS_PER_USER")
-    rate_limit_per_minute: int = Field(
-        default=60, validation_alias="RATE_LIMIT_PER_MINUTE"
-    )
-    worker_concurrency: int = Field(default=4, validation_alias="WORKER_CONCURRENCY")
+    rate_limit_per_minute: int = Field(default=60, validation_alias="RATE_LIMIT_PER_MINUTE")
+    api_keys: str = Field(default="", validation_alias="API_KEYS")
 
 @lru_cache
 def get_settings() -> Settings:

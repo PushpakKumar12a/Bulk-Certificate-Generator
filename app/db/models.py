@@ -19,13 +19,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 class Base(DeclarativeBase):
     pass
 
-
 def enum_values(values: list[StrEnum]) -> list[str]:
-    result = []
-    for item in values:
-        result.append(item.value)
-    return result
-
+    return [item.value for item in values]
 
 class JobStatus(StrEnum):
     QUEUED = "queued"
@@ -46,13 +41,11 @@ class Job(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    owner_id: Mapped[str] = mapped_column(
-        String(100), index=True, nullable=False, server_default="legacy"
-    )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     course: Mapped[str] = mapped_column(String(200), nullable=False)
     org: Mapped[str] = mapped_column(String(200), nullable=False)
     issue_date: Mapped[date] = mapped_column(Date, nullable=False)
+    owner: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
     status: Mapped[JobStatus] = mapped_column(
         Enum(
             JobStatus,
@@ -89,7 +82,6 @@ class Recipient(Base):
     row: Mapped[int] = mapped_column(Integer, nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     email: Mapped[str | None] = mapped_column(String(320))
-    number: Mapped[str | None] = mapped_column(String(100))
     status: Mapped[ItemStatus] = mapped_column(
         Enum(
             ItemStatus,

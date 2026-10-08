@@ -6,7 +6,7 @@ class CertificateStorage(Protocol):
 
     def read(self, key: str) -> bytes: ...
 
-class LocalCertificateStorage:
+class CertificateStorage:
     def __init__(self, root: str | Path) -> None:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)

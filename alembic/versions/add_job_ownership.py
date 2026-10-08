@@ -8,11 +8,11 @@ down_revision = "0001"
 def upgrade() -> None:
     op.add_column(
         "jobs",
-        sa.Column("owner_id", sa.String(100), nullable=False, server_default="legacy"),
+        sa.Column("owner", sa.String(200), nullable=False, server_default="legacy"),
     )
-    op.create_index("ix_jobs_owner_id", "jobs", ["owner_id"])
+    op.create_index("ix_jobs_owner", "jobs", ["owner"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_jobs_owner_id", table_name="jobs")
-    op.drop_column("jobs", "owner_id")
+    op.drop_index("ix_jobs_owner", table_name="jobs")
+    op.drop_column("jobs", "owner")

@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.certificates.service import generate
-from app.certificates.storage import LocalCertificateStorage
+from app.certificates.storage import CertificateStorage
 from app.core.config import get_settings
 from app.db.models import ItemStatus, Job, JobStatus, Recipient
 from app.db.session import session_maker
@@ -19,21 +19,14 @@ from app.worker.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 def progress(recipients: Iterable[Recipient]) -> tuple[int, int, int]:
-    items = list(recipients)
-    done = 0
-    success = 0
-    failed = 0
-
-    for item in items:
-        if item.status in (ItemStatus.COMPLETED, ItemStatus.FAILED):
-            done += 1
-
+    done = success = failed = 0
+    for item in recipients:
         if item.status == ItemStatus.COMPLETED:
+            done += 1
             success += 1
-
-        if item.status == ItemStatus.FAILED:
+        elif item.status == ItemStatus.FAILED:
+            done += 1
             failed += 1
-
     return done, success, failed
 
 async def process(job_id: UUID) -> None:
@@ -51,21 +44,24 @@ async def process(job_id: UUID) -> None:
             job.status = JobStatus.RUNNING
             job.started_at = job.started_at or datetime.now(UTC)
             await db.commit()
-            storage = LocalCertificateStorage(get_settings().storage_path)
+            storage = CertificateStorage(get_settings().storage_path)
 
-            recipients = await db.scalars(
-                select(Recipient)
-                .options(selectinload(Recipient.certificate))
-                .where(Recipient.job_id == job_id)
-                .order_by(Recipient.row)
+            recipients = list(
+                await db.scalars(
+                    select(Recipient)
+                    .options(selectinload(Recipient.certificate))
+                    .where(Recipient.job_id == job_id)
+                    .order_by(Recipient.row)
+                )
             )
 
-            for recipient in recipients:
+            for idx, recipient in enumerate(recipients, 1):
                 if recipient.status == ItemStatus.COMPLETED:
                     continue
 
                 await generate(db, job, recipient, storage)
-                await update_progress(db, job)
+                if idx % 10 == 0:
+                    await update_progress(db, job)
 
             await update_progress(db, job)
         except Exception:

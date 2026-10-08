@@ -15,6 +15,4 @@ wheels/
 !.env.example
 storage/
 Bulk_Certificate_Generator_Backend_Assignment.md
-PROJECT_EXECUTION_PHASES.md
-SECURITY_README.md
 .env.local

@@ -10,6 +10,8 @@ class RecipientResult(BaseModel):
     status: str
     error: str | None = None
     certificate_id: UUID | None = None
+    download_url: str | None = None
+    verification_url: str | None = None
 
 class JobStatusOut(BaseModel):
     job_id: UUID

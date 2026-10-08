@@ -12,6 +12,7 @@ def upgrade() -> None:
         sa.Column("course", sa.String(200), nullable=False),
         sa.Column("org", sa.String(200), nullable=False),
         sa.Column("issue_date", sa.Date(), nullable=False),
+        sa.Column("owner", sa.String(200), nullable=False),
         sa.Column(
             "status",
             sa.Enum(
@@ -33,6 +34,7 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True)),
         sa.Column("completed_at", sa.DateTime(timezone=True)),
     )
+    op.create_index("ix_jobs_owner", "jobs", ["owner"])
     op.create_table(
         "recipients",
         sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
@@ -40,7 +42,6 @@ def upgrade() -> None:
         sa.Column("row", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(200), nullable=False),
         sa.Column("email", sa.String(320)),
-        sa.Column("number", sa.String(100)),
         sa.Column(
             "status",
             sa.Enum(
@@ -72,6 +73,7 @@ def downgrade() -> None:
     op.drop_table("certificates")
     op.drop_index("ix_recipients_job_id", table_name="recipients")
     op.drop_table("recipients")
+    op.drop_index("ix_jobs_owner", table_name="jobs")
     op.drop_table("jobs")
     if op.get_bind().dialect.name == "postgresql":
         op.execute("DROP TYPE item_status")

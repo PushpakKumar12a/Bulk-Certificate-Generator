@@ -16,7 +16,6 @@ def read_csv(data: bytes, max_rows: int) -> list[tuple[int, RecipientIn]]:
         raise ValueError("CSV must contain a full_name column")
 
     rows: list[tuple[int, RecipientIn]] = []
-    numbers: set[str] = set()
 
     try:
         for line, row in enumerate(reader, start=2):
@@ -29,16 +28,11 @@ def read_csv(data: bytes, max_rows: int) -> list[tuple[int, RecipientIn]]:
                 item = RecipientIn(
                     name=(row.get("full_name") or "").strip(),
                     email=(row.get("email") or "").strip() or None,
-                    number=(row.get("certificate_number") or "").strip() or None,
                 )
             except ValidationError as exc:
                 message = exc.errors()[0].get("msg", "Invalid recipient")
                 raise ValueError(f"Invalid row {line}: {message}") from exc
 
-            if item.number and item.number in numbers:
-                raise ValueError(f"Duplicate certificate_number on row {line}")
-            if item.number:
-                numbers.add(item.number)
             rows.append((line, item))
     except csv.Error as exc:
         raise ValueError("Invalid CSV format") from exc

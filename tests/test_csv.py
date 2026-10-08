@@ -4,7 +4,7 @@ from app.jobs.csv import read_csv
 
 def test_read_csv() -> None:
     rows = read_csv(
-        b"full_name,email,certificate_number\nAarav Sharma,aarav@example.com,A-1\n",
+        b"full_name,email\nAarav Sharma,aarav@example.com\n",
         10,
     )
 
@@ -14,7 +14,7 @@ def test_read_csv() -> None:
 @pytest.mark.parametrize(
     ("data", "message"),
     [
-        (b"email,certificate_number\na@example.com,A-1\n", "full_name"),
+        (b"email\na@example.com\n", "full_name"),
         (b"full_name,email\nAarav,not-an-email\n", "Invalid row"),
         (b"full_name,email\n", "at least one"),
     ],

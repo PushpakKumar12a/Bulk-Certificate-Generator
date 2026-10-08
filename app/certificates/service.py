@@ -1,6 +1,6 @@
 import logging
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +27,7 @@ async def generate(
     recipient.status = ItemStatus.PROCESSING
     await db.commit()
 
-    certificate_id = Certificate.__table__.c.id.default.arg()
+    certificate_id = uuid4()
     key = certificate_storage_key(job.id, certificate_id)
     try:
 
@@ -36,7 +36,7 @@ async def generate(
             course=job.course,
             org=job.org,
             issue_date=job.issue_date,
-            number=recipient.number,
+            certificate_id=str(certificate_id).upper(),
         )
         storage.save(key, content)
 
@@ -61,30 +61,11 @@ async def generate(
         if existing is not None:
             return existing
 
-        recipient.status = ItemStatus.FAILED
-        recipient.error = str(exc)[:2000]
-        await db.commit()
+        rec = await db.get(Recipient, recipient.id)
+        if rec is not None:
+            rec.status = ItemStatus.FAILED
+            rec.error = str(exc)[:2000]
+            await db.commit()
 
         return None
 
-def finish_job(job: Job) -> None:
-    done = 0
-    success = 0
-    failed = 0
-
-    for recipient in job.recipients:
-        if recipient.status in (ItemStatus.COMPLETED, ItemStatus.FAILED):
-            done += 1
-
-        if recipient.status == ItemStatus.COMPLETED:
-            success += 1
-
-        if recipient.status == ItemStatus.FAILED:
-            failed += 1
-
-    job.done = done
-    job.success = success
-    job.failed = failed
-
-    if job.done == job.total:
-        job.completed_at = datetime.now(UTC)

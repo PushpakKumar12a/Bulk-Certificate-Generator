@@ -3,11 +3,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import func, select
-from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.auth import Identity, require_scope
+from app.core.auth import CurrentUser
 from app.db.models import Job, JobStatus, Recipient
 from app.db.repo import get_job, get_recipients
 from app.db.session import get_db
@@ -25,8 +24,8 @@ async def create_job(
     org: str = Form(...),
     issue_date: date = Form(...),
     recipients_file: UploadFile = File(...),
-    identity: Identity = Depends(require_scope("jobs:write")),
     db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = ...,
 ) -> JobOut:
     settings = get_settings()
     if not recipients_file.filename or not recipients_file.filename.lower().endswith(
@@ -39,15 +38,12 @@ async def create_job(
     if len(data) > settings.max_csv_bytes:
         raise HTTPException(status_code=413, detail="CSV file is too large")
 
-    try:
-        meta = JobIn(
-            title=title.strip(),
-            course=course.strip(),
-            org=org.strip(),
-            issue_date=issue_date,
-        )
-    except ValidationError as exc:
-        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    meta = JobIn(
+        title=title.strip(),
+        course=course.strip(),
+        org=org.strip(),
+        issue_date=issue_date,
+    )
 
     try:
         rows = read_csv(data, settings.max_rows)
@@ -57,7 +53,6 @@ async def create_job(
         select(func.count())
         .select_from(Job)
         .where(
-            Job.owner_id == identity.user_id,
             Job.status.in_((JobStatus.QUEUED, JobStatus.RUNNING)),
         )
     )
@@ -66,28 +61,17 @@ async def create_job(
         raise HTTPException(status_code=429, detail="job quota exceeded")
 
     job = Job(
-        owner_id=identity.user_id,
         title=meta.title,
         course=meta.course,
         org=meta.org,
         issue_date=meta.issue_date,
+        owner=current_user,
         total=len(rows),
     )
-    recipients = []
-    for line, item in rows:
-        if item.email:
-            email = str(item.email)
-        else:
-            email = None
-        recipient = Recipient(
-            row=line,
-            name=item.name,
-            email=email,
-            number=item.number,
-        )
-        recipients.append(recipient)
-
-    job.recipients = recipients
+    job.recipients = [
+        Recipient(row=line, name=item.name, email=str(item.email) if item.email else None)
+        for line, item in rows
+    ]
     db.add(job)
     await db.commit()
     await db.refresh(job)
@@ -112,29 +96,26 @@ async def create_job(
 @router.get("/{job_id}", response_model=JobStatusOut)
 async def job_status(
     job_id: UUID,
-    identity: Identity = Depends(require_scope("jobs:read")),
     db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = ...,
 ) -> JobStatusOut:
-    job = await get_job(db, job_id, identity.user_id)
-    if job is None:
+    job = await get_job(db, job_id)
+    if job is None or job.owner != current_user:
         raise HTTPException(status_code=404, detail="job not found")
 
     recipients = await get_recipients(db, job_id)
-    results = []
-
-    for item in recipients:
-        if item.certificate:
-            certificate_id = item.certificate.id
-        else:
-            certificate_id = None
-        result = RecipientResult(
+    results = [
+        RecipientResult(
             row=item.row,
             name=item.name,
             status=item.status.value,
             error=item.error,
-            certificate_id=certificate_id,
+            certificate_id=item.certificate.id if item.certificate else None,
+            download_url=f"/certificates/{item.certificate.id}" if item.certificate else None,
+            verification_url=f"/verify/{item.certificate.id}" if item.certificate else None,
         )
-        results.append(result)
+        for item in recipients
+    ]
 
     return JobStatusOut(
         job_id=job.id,

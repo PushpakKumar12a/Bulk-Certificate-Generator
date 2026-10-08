@@ -1,52 +1,52 @@
-import hmac
-import logging
-from dataclasses import dataclass
+from __future__ import annotations
 
-from fastapi import Depends, Header, HTTPException, status
+import time
+from collections import defaultdict
+from typing import Annotated
+
+from fastapi import Depends, HTTPException
+from fastapi.security import APIKeyHeader
 
 from app.core.config import get_settings
 
-logger = logging.getLogger(__name__)
+api_key_scheme = APIKeyHeader(name="X-Api-Key", auto_error=False)
 
-@dataclass(frozen=True)
-class Identity:
-    user_id: str
-    scopes: frozenset[str]
-
-def identities() -> dict[str, Identity]:
-    result: dict[str, Identity] = {}
-
-    for entry in get_settings().api_keys.split(","):
-        parts = entry.strip().split(":", 2)
-        if len(parts) != 3:
-            continue
-
-        key, user_id, scopes = parts
-        if key and user_id:
-            result[key] = Identity(user_id, frozenset(scopes.split("|")))
-
+# {key: user_id}
+def parse_keys(raw: str) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for pair in raw.split(","):
+        pair = pair.strip()
+        if ":" in pair:
+            key, user_id = pair.split(":", 1)
+            result[key.strip()] = user_id.strip()
     return result
 
-def authenticate(api_key: str | None = Header(default=None, alias="X-API-Key")) -> Identity:
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="authentication required",
-        )
 
-    for configured_key, identity in identities().items():
-        if hmac.compare_digest(api_key, configured_key):
+# sliding window per key — timestamps of requests in the last 60 s
+# ponytail: in-memory, resets on restart; use Redis if multi-process
+rate_counters: dict[str, list[float]] = defaultdict(list)
 
-            return identity
 
-    logger.warning("Rejected invalid API key")
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid API key")
+def check_rate(key: str, limit: int) -> None:
+    now = time.monotonic()
+    rate_counters[key] = [t for t in rate_counters[key] if now - t < 60]
+    if len(rate_counters[key]) >= limit:
+        raise HTTPException(status_code=429, detail="rate limit exceeded")
+    rate_counters[key].append(now)
 
-def require_scope(scope: str):
-    def dependency(identity: Identity = Depends(authenticate)) -> Identity:
-        if scope not in identity.scopes:
-            raise HTTPException(status_code=403, detail="insufficient scope")
 
-        return identity
+def require_api_key(
+    x_api_key: Annotated[str | None, Depends(api_key_scheme)],
+) -> str:
+    """FastAPI dependency — validates X-Api-Key and returns user_id."""
+    settings = get_settings()
+    keys = parse_keys(settings.api_keys)
 
-    return dependency
+    if not x_api_key or x_api_key not in keys:
+        raise HTTPException(status_code=401, detail="invalid or missing API key")
+
+    check_rate(x_api_key, settings.rate_limit_per_minute)
+    return keys[x_api_key]
+
+
+CurrentUser = Annotated[str, Depends(require_api_key)]
