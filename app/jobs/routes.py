@@ -1,0 +1,146 @@
+import logging
+from datetime import UTC, date, datetime
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.certificates.storage import get_storage
+from app.core.config import get_settings
+from app.core.auth import CurrentUser
+from app.db.models import Job, JobStatus, Recipient
+from app.db.repo import get_job, get_recipients
+from app.db.session import get_db
+from app.jobs.csv import read_csv
+from app.jobs.schemas import JobIn, JobOut, JobStatusOut, RecipientResult
+from app.queue.client import get_queue_client
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+@router.post("", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
+async def create_job(
+    title: str = Form(...),
+    course: str = Form(...),
+    org: str = Form(...),
+    issue_date: date = Form(...),
+    recipients_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = ...,
+) -> JobOut:
+    settings = get_settings()
+    if not recipients_file.filename or not recipients_file.filename.lower().endswith(
+        ".csv"
+    ):
+        raise HTTPException(status_code=400, detail="recipients_file must be a CSV file")
+
+    data = await recipients_file.read(settings.max_csv_bytes + 1)
+
+    if len(data) > settings.max_csv_bytes:
+        raise HTTPException(status_code=413, detail="CSV file is too large")
+
+    meta = JobIn(
+        title=title.strip(),
+        course=course.strip(),
+        org=org.strip(),
+        issue_date=issue_date,
+    )
+
+    try:
+        rows = read_csv(data, settings.max_rows)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    count = await db.scalar(
+        select(func.count())
+        .select_from(Job)
+        .where(
+            Job.owner == current_user,
+            Job.status.in_((JobStatus.QUEUED, JobStatus.RUNNING)),
+        )
+    )
+
+    if count >= settings.max_jobs_per_user:
+        raise HTTPException(status_code=429, detail="job quota exceeded")
+
+    job = Job(
+        title=meta.title,
+        course=meta.course,
+        org=meta.org,
+        issue_date=meta.issue_date,
+        owner=current_user,
+        total=len(rows),
+    )
+    job.recipients = [
+        Recipient(row=line, name=item.name, email=str(item.email) if item.email else None)
+        for line, item in rows
+    ]
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    # Store CSV in Azure Blob Storage uploads container
+    storage = get_storage()
+    try:
+        storage.save(
+            f"uploads/{job.id}/recipients.csv",
+            data,
+            container=settings.azure_storage_uploads_container,
+        )
+    except Exception as exc:
+        logger.warning(f"Could not persist CSV to blob storage uploads container: {exc}")
+
+    # Enqueue job to Azure Storage Queue
+    queue_client = get_queue_client(settings)
+    try:
+        queue_client.send_message({"job_id": str(job.id)})
+    except Exception as exc:
+        job.status = JobStatus.FAILED
+        job.completed_at = datetime.now(UTC)
+        await db.commit()
+        raise HTTPException(
+            status_code=503,
+            detail="job queue is unavailable",
+        ) from exc
+
+    return JobOut(
+        job_id=str(job.id),
+        status=job.status.value,
+        total=job.total,
+        status_url=f"/jobs/{job.id}",
+    )
+
+@router.get("/{job_id}", response_model=JobStatusOut)
+async def job_status(
+    job_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = ...,
+) -> JobStatusOut:
+    job = await get_job(db, job_id)
+    if job is None or job.owner != current_user:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    recipients = await get_recipients(db, job_id)
+    results = [
+        RecipientResult(
+            row=item.row,
+            name=item.name,
+            status=item.status.value,
+            error=item.error,
+            certificate_id=item.certificate.id if item.certificate else None,
+            download_url=f"/certificates/{item.certificate.id}" if item.certificate else None,
+            verification_url=f"/certificates/{item.certificate.id}/verify" if item.certificate else None,
+        )
+        for item in recipients
+    ]
+
+    return JobStatusOut(
+        job_id=job.id,
+        status=job.status,
+        total=job.total,
+        done=job.done,
+        success=job.success,
+        failed=job.failed,
+        results=results,
+    )

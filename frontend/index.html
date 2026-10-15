@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Generate and verify certificates in batches with the Azure Bulk Certificate Generator.">
+  <meta name="theme-color" content="#ffffff">
+  <title>Bulk Certificate Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Bulk Certificate Generator home">
+        <span class="brand-mark" aria-hidden="true">BC</span>
+        <span class="brand-copy">
+          <strong>Bulk Certificate Generator</strong>
+          <span>Certificate operations portal</span>
+        </span>
+      </a>
+      <nav class="tabs" aria-label="Certificate tools">
+        <button id="tab-generate" class="tab-btn active" type="button" aria-controls="section-generate" aria-selected="true">Generate batch</button>
+        <button id="tab-verify" class="tab-btn" type="button" aria-controls="section-verify" aria-selected="false">Verify certificate</button>
+      </nav>
+    </header>
+
+    <main class="main-content">
+      <section class="page-intro">
+        <p class="eyebrow">CERTIFICATE MANAGEMENT</p>
+        <h1>Manage certificates in one place</h1>
+        <p>Generate certificates for a recipient list, track batch progress, and verify issued credentials.</p>
+      </section>
+
+      <section id="section-generate" class="view-panel active" aria-labelledby="generate-heading">
+        <div class="panel-heading">
+          <div>
+            <h2 id="generate-heading">Generate a batch</h2>
+            <p>Upload a CSV file to start certificate generation.</p>
+          </div>
+          <span class="section-tag">Batch processing</span>
+        </div>
+
+        <form id="job-form" class="surface">
+          <div class="form-section">
+            <h3>Batch details</h3>
+            <div class="form-grid">
+              <div class="form-group form-group-wide">
+                <label for="input-api-url">Backend API URL</label>
+                <input type="url" id="input-api-url" placeholder="https://your-api.example.com" autocomplete="url">
+                <span class="hint">Use your deployed HTTPS API URL. Leave blank only when the API shares this origin.</span>
+              </div>
+              <div class="form-group">
+                <label for="input-api-key">API key</label>
+                <input type="password" id="input-api-key" placeholder="Enter API key" autocomplete="current-password" required>
+                <span class="hint">Used for batch submission and job status requests.</span>
+              </div>
+              <div class="form-group">
+                <label for="input-title">Certificate title</label>
+                <input type="text" id="input-title" value="Certificate of Completion" maxlength="160" required>
+              </div>
+              <div class="form-group">
+                <label for="input-course">Course or program</label>
+                <input type="text" id="input-course" placeholder="e.g. Azure Solutions Architecture" maxlength="160" required>
+              </div>
+              <div class="form-group">
+                <label for="input-org">Issuing organization</label>
+                <input type="text" id="input-org" placeholder="Organization name" maxlength="160" required>
+              </div>
+              <div class="form-group">
+                <label for="input-date">Issue date</label>
+                <input type="date" id="input-date" required>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section upload-section">
+            <div class="section-title-row">
+              <div>
+                <h3>Recipient CSV</h3>
+                <p class="muted-copy">CSV must include a <code>full_name</code> column. An <code>email</code> column is optional.</p>
+              </div>
+              <span class="file-type">CSV · Max size depends on API configuration</span>
+            </div>
+            <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Choose or drop a recipient CSV file">
+              <input type="file" id="input-file" accept=".csv,text/csv" required hidden>
+              <span class="upload-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 15.5v3A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5v-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="dropzone-title" id="file-label">Choose a CSV file or drag it here</span>
+              <span class="dropzone-subtitle">Select a file from your device to continue.</span>
+            </div>
+          </div>
+
+          <div class="form-footer">
+            <p class="muted-copy">Check your recipient list before submitting. Processing runs in the background.</p>
+            <button type="submit" id="btn-submit" class="btn btn-primary">
+              <span>Start batch generation</span>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <p id="submit-message" class="form-message" role="status" aria-live="polite"></p>
+        </form>
+
+        <section id="progress-card" class="surface progress-panel hidden" aria-labelledby="progress-heading">
+          <div class="progress-heading">
+            <div>
+              <p class="eyebrow">BATCH STATUS</p>
+              <h2 id="progress-heading">Job <code id="display-job-id">—</code></h2>
+              <span id="display-job-status" class="status-badge status-queued">Queued</span>
+            </div>
+            <div class="metrics" aria-label="Batch totals">
+              <div class="metric"><span id="val-total" class="metric-value">0</span><span class="metric-label">Total</span></div>
+              <div class="metric"><span id="val-success" class="metric-value success-text">0</span><span class="metric-label">Successful</span></div>
+              <div class="metric"><span id="val-failed" class="metric-value danger-text">0</span><span class="metric-label">Failed</span></div>
+            </div>
+          </div>
+          <div class="progress-meta"><span>Processing progress</span><span id="progress-percent">0%</span></div>
+          <div class="progress-track" role="progressbar" aria-label="Batch processing progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-track">
+            <div id="progress-bar" class="progress-fill"></div>
+          </div>
+          <div class="table-heading">
+            <div><h3>Recipient results</h3><p>Individual certificate status and download links.</p></div>
+          </div>
+          <div class="table-wrap">
+            <table class="results-table">
+              <thead><tr><th scope="col">Row</th><th scope="col">Recipient</th><th scope="col">Status</th><th scope="col">Details / action</th></tr></thead>
+              <tbody id="table-body"><tr><td colspan="4" class="empty-state">Waiting for the first status update…</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <section id="section-verify" class="view-panel" aria-labelledby="verify-heading">
+        <div class="panel-heading">
+          <div>
+            <h2 id="verify-heading">Verify a certificate</h2>
+            <p>Check whether an issued certificate is authentic and available.</p>
+          </div>
+          <span class="section-tag">Public verification</span>
+        </div>
+        <div class="surface verify-surface">
+          <div class="verify-intro">
+            <span class="verify-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4.5-2.8 7.7-7 10-4.2-2.3-7-5.5-7-10V6l7-3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m8.5 12 2.2 2.2 4.8-4.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </span>
+            <div><h3>Certificate authenticity</h3><p>Enter the certificate UUID shown on the issued credential.</p></div>
+          </div>
+          <form id="verify-form">
+            <div class="form-group">
+              <label for="input-verify-id">Certificate ID (UUID)</label>
+              <div class="verify-form-row">
+                <input type="text" id="input-verify-id" placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000" autocomplete="off" required>
+                <button type="submit" id="btn-verify" class="btn btn-primary">Verify certificate</button>
+              </div>
+            </div>
+          </form>
+          <div id="verify-result" class="verify-result hidden" role="status" aria-live="polite"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Bulk Certificate Generator</span>
+      <span>Azure-hosted certificate services</span>
+    </footer>
+  </div>
+</body>
+</html>

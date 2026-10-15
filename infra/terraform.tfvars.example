@@ -1,0 +1,6 @@
+environment       = "dev"
+location          = "eastus" # e.g. eastus, koreacentral, westeurope
+app_prefix        = "certgen"
+db_admin_user     = "certadmin"
+db_admin_password = "YourStrongPassword123!"
+api_keys          = "key1:user-admin"
